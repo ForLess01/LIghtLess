@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Surfaces ── */
+  --color-bg: #050507;
+  --color-surface: #0d0d10;
+  --color-surface-elevated: #13131a;
+  --color-surface-glass: rgba(255, 255, 255, 0.04);
+  --color-surface-glass-hover: rgba(255, 255, 255, 0.07);
+  --color-border: rgba(255, 255, 255, 0.07);
+  --color-border-strong: rgba(255, 255, 255, 0.13);
+  --color-border-focus: rgba(245, 185, 66, 0.5);
+
+  /* ── Foreground ── */
+  --color-fg: #f5f5f7;
+  --color-fg-muted: rgba(245, 245, 247, 0.55);
+  --color-fg-subtle: rgba(245, 245, 247, 0.32);
+
+  /* ── Amber accent ── */
+  --color-amber: #f5b942;
+  --color-amber-soft: #fbbf24;
+  --color-amber-glow: rgba(245, 185, 66, 0.2);
+  --color-amber-glow-strong: rgba(245, 185, 66, 0.35);
+
+  /* ── Semantic ── */
+  --color-success: #30d158;
+  --color-success-glow: rgba(48, 209, 88, 0.2);
+  --color-danger: #ff453a;
+  --color-danger-glow: rgba(255, 69, 58, 0.2);
+  --color-warning: #ffd60a;
+
+  /* ── Typography ── */
+  --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", system-ui, sans-serif;
+  --font-text: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", system-ui, sans-serif;
+  --font-mono: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
+
+  /* ── Radius ── */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-2xl: 36px;
+
+  /* ── Shadows ── */
+  --shadow-glass: 0 1px 0 0 rgba(255,255,255,0.06) inset, 0 -1px 0 0 rgba(0,0,0,0.4) inset;
+  --shadow-card: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+  --shadow-amber: 0 0 60px rgba(245,185,66,0.25), 0 0 120px rgba(245,185,66,0.1);
+  --shadow-amber-sm: 0 0 20px rgba(245,185,66,0.3);
+}
+
+/* ── Reset & base ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-display);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Ambient background ── */
+body {
+  background-image:
+    radial-gradient(ellipse 110% 60% at 50% -10%, rgba(245, 185, 66, 0.06) 0%, transparent 55%),
+    radial-gradient(ellipse 80% 50% at 0% 100%, rgba(120, 100, 255, 0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 40% at 100% 50%, rgba(0, 180, 255, 0.03) 0%, transparent 60%);
+  background-attachment: fixed;
+}
+
+/* ── Typography ── */
+* {
+  letter-spacing: -0.015em;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.03em;
+  font-weight: 600;
+}
+
+/* ── Selection ── */
+::selection {
+  background: var(--color-amber);
+  color: #000;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* ── Glass card ── */
+.glass {
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-glass);
+}
+
+/* ── Glow utility ── */
+.glow-amber {
+  box-shadow: var(--shadow-amber);
+}
+.glow-amber-sm {
+  box-shadow: var(--shadow-amber-sm);
+}
+
+/* ── Noise texture overlay ── */
+.noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* ── Input base ── */
+.input-base {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-fg);
+  font-family: var(--font-display);
+  font-size: 15px;
+  padding: 12px 16px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+.input-base::placeholder {
+  color: var(--color-fg-subtle);
+}
+.input-base:focus {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-amber-glow);
+}
+
+/* ── Ambient light animation ── */
+@keyframes ambientPulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* ── Fade in ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease forwards;
+}
