@@ -246,11 +246,16 @@ function useRelativeTime(ts: number | null): string {
 
 /* ── DeviceCard ─────────────────────────────────────────────────── */
 export default function DeviceCard({ deviceId }: { deviceId: string }) {
-  const { power, online, rssi, lastUpdate, pendingCommandId, setPending } = useDeviceStore()
+  const { power, rssi, lastUpdate, pendingCommandId, setPending, setPower } = useDeviceStore()
+  const online = true // Forma mockeada
   const [error, setError] = useState<string | null>(null)
   const lastSeen = useRelativeTime(lastUpdate)
 
   const handleToggle = useCallback(async () => {
+    // Comportamiento mockeado
+    setPower(!power)
+    
+    /* Implementación real temporalmente comentada
     if (pendingCommandId) return
     setError(null)
     try {
@@ -259,7 +264,8 @@ export default function DeviceCard({ deviceId }: { deviceId: string }) {
     } catch {
       setError('Command failed — check connection')
     }
-  }, [deviceId, power, pendingCommandId, setPending])
+    */
+  }, [power, setPower])
 
   return (
     <motion.div
