@@ -5,6 +5,7 @@ import { useState, useEffect, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { login } from '@/lib/api'
 import { setToken } from '@/lib/auth'
+import { enterDemoMode } from '@/lib/demo'
 
 /* ── Floating particles ─── */
 // Generamos las partículas SOLO en el cliente para evitar hydration mismatch
@@ -139,6 +140,15 @@ export default function LoginPage() {
       setError(err instanceof Error ? err.message : 'Authentication failed')
       setLoading(false)
     }
+  }
+
+  /**
+   * TODO: Remove demo mode when backend is deployed in production.
+   * This is a temporary bypass to showcase the UI without a running backend.
+   */
+  const handleDemo = () => {
+    enterDemoMode()
+    router.replace('/dashboard')
   }
 
   return (
@@ -316,6 +326,33 @@ export default function LoginPage() {
                 )}
               </motion.button>
             </form>
+
+            {/* TODO: Remove demo section when backend is deployed */}
+            <div className="mt-6 flex items-center gap-3">
+              <div className="h-px flex-1" style={{ background: 'var(--color-border)' }} />
+              <span className="text-[11px]" style={{ color: 'var(--color-fg-subtle)' }}>or</span>
+              <div className="h-px flex-1" style={{ background: 'var(--color-border)' }} />
+            </div>
+
+            <motion.button
+              id="demo-btn"
+              type="button"
+              onClick={handleDemo}
+              whileTap={{ scale: 0.97 }}
+              whileHover={{ scale: 1.01 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              className="mt-4 w-full rounded-[14px] py-3 text-[14px] font-medium"
+              style={{
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-fg-muted)',
+              }}
+            >
+              Try Demo →
+            </motion.button>
+            <p className="mt-2 text-center text-[10px]" style={{ color: 'var(--color-fg-subtle)' }}>
+              Explore the UI with simulated data
+            </p>
           </div>
         </div>
 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { fetchEvents } from '@/lib/api'
 import { getToken } from '@/lib/auth'
+import { isDemoMode, generateMockEvents } from '@/lib/demo'
 import type { DeviceEvent } from '@/lib/api'
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID ?? 'foco-sala'
@@ -119,6 +120,16 @@ export default function LogsPage() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
 
   const load = useCallback(async () => {
+    /**
+     * TODO: Remove demo branch when backend is deployed.
+     */
+    if (isDemoMode()) {
+      setEvents(generateMockEvents(LIMIT) as DeviceEvent[])
+      setLastRefresh(new Date())
+      setLoading(false)
+      return
+    }
+
     try {
       const data = await fetchEvents(DEVICE_ID, LIMIT)
       setEvents(data)
@@ -132,7 +143,7 @@ export default function LogsPage() {
   }, [])
 
   useEffect(() => {
-    if (!getToken()) {
+    if (!isDemoMode() && !getToken()) {
       router.replace('/login')
       return
     }
