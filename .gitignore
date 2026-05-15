@@ -20,3 +20,10 @@ frontend/.next/
 .DS_Store
 .idea/
 .vscode/
+
+# PlatformIO
+firmware/.pio/
+firmware/.vscode/
+
+# Firmware config con credenciales (NO subir)
+firmware/src/config.h
