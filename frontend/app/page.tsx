@@ -2,13 +2,30 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { getToken } from '@/lib/auth'
+import { getToken, setToken } from '@/lib/auth'
+import { login } from '@/lib/api'
+
+const DEFAULT_EMAIL = 'admin@lightless.local'
+const DEFAULT_PASSWORD = 'admin'
 
 export default function RootRedirect() {
   const router = useRouter()
 
   useEffect(() => {
-    router.replace(getToken() ? '/dashboard' : '/login')
+    async function go() {
+      if (getToken()) {
+        router.replace('/dashboard')
+        return
+      }
+      try {
+        const { token } = await login(DEFAULT_EMAIL, DEFAULT_PASSWORD)
+        setToken(token)
+        router.replace('/dashboard')
+      } catch {
+        router.replace('/dashboard')
+      }
+    }
+    go()
   }, [router])
 
   return (

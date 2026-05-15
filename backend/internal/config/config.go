@@ -14,6 +14,10 @@ type Config struct {
 	AdminEmail        string
 	AdminPasswordHash string
 	DatabasePath      string
+	GeminiAPIKey      string
+	GeminiModel      string
+	AIAPIKey         string
+	AIModel          string
 }
 
 func Load() *Config {
@@ -26,6 +30,10 @@ func Load() *Config {
 		AdminEmail:        mustEnv("ADMIN_EMAIL"),
 		AdminPasswordHash: mustEnv("ADMIN_PASSWORD_HASH"),
 		DatabasePath:      getEnv("DATABASE_PATH", "./lightless.db"),
+		GeminiAPIKey:      os.Getenv("GEMINI_API_KEY"),
+		GeminiModel:       getEnv("GEMINI_MODEL", "gemini-2.0-flash"),
+		AIAPIKey:          os.Getenv("AI_API_KEY"),
+		AIModel:           getEnv("AI_MODEL", "moonshot-v1-8k"),
 	}
 }
 

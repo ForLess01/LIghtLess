@@ -1,0 +1,40 @@
+# fly.toml — LightLess Backend + MQTT
+# Deploy: cd backend && fly deploy
+app = 'lightless-api'
+primary_region = 'gru'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  PORT = '8080'
+  MQTT_BROKER_URL = 'tcp://localhost:1883'
+  DATABASE_PATH = '/data/lightless.db'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+
+# MQTT port (TCP)
+[[services]]
+  internal_port = 1883
+  protocol = 'tcp'
+  [[services.ports]]
+    port = 1883
+
+# MQTT WebSocket port
+[[services]]
+  internal_port = 9001
+  protocol = 'tcp'
+  [[services.ports]]
+    port = 9001
+
+[mounts]
+  source = 'lightless_data'
+  destination = '/data'
+
+[secrets]
+  # Set via: fly secrets set JWT_SECRET=... ADMIN_EMAIL=... ADMIN_PASSWORD_HASH=... AI_API_KEY=...

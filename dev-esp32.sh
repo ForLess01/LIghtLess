@@ -49,6 +49,7 @@ DOCKER_BIN=$(find_bin docker)
 stop_all() {
   log "Stopping ESP32 dev services..."
 
+  # Kill processes by PID files
   if [ -d "$PID_DIR" ]; then
     for pidfile in "$PID_DIR"/*.pid; do
       [ -f "$pidfile" ] || continue
@@ -57,11 +58,25 @@ stop_all() {
       local name
       name=$(basename "$pidfile" .pid)
       if kill -0 "$pid" 2>/dev/null; then
-        kill "$pid" 2>/dev/null && ok "Stopped $name (PID $pid)" || warn "Could not stop $name"
+        # Kill the process tree (parent + children)
+        kill -- -"$(ps -o pgid= -p "$pid" | tr -d ' ')" 2>/dev/null && ok "Stopped $name (PID $pid)" || kill "$pid" 2>/dev/null && ok "Stopped $name (PID $pid)" || warn "Could not stop $name"
       fi
       rm -f "$pidfile"
     done
   fi
+
+  # Fallback: kill anything still listening on our ports
+  for port in 8080 3000 3001; do
+    local pids
+    pids=$(lsof -ti:"$port" 2>/dev/null || true)
+    if [ -n "$pids" ]; then
+      echo "$pids" | xargs kill -9 2>/dev/null && ok "Killed process on :$port" || true
+    fi
+  done
+
+  # Kill any leftover go or node child processes from this project
+  pkill -f "go run ./cmd/server" 2>/dev/null || true
+  pkill -f "next dev" 2>/dev/null || true
 
   # Stop docker compose (mosquitto)
   if [ -n "$DOCKER_BIN" ]; then
@@ -172,7 +187,7 @@ start_all() {
   echo -e "  ${CYAN}Backend${RESET}   → http://localhost:8080"
   echo -e "  ${CYAN}MQTT${RESET}      → tcp://localhost:1883"
   echo ""
-  echo -e "  ${DIM}Login: admin@lightless.local / admin${RESET}"
+  echo -e "  ${DIM}Auto-login: admin@lightless.local / admin${RESET}"
   echo -e "  ${DIM}ESP32 device ID: foco-sala${RESET}"
   echo -e "  ${DIM}Logs: .dev-logs/${RESET}"
   echo -e "  ${DIM}Stop: ./dev-esp32.sh stop${RESET}"

@@ -1,9 +1,10 @@
 'use client'
 
-import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useDeviceStore } from '@/lib/store'
-import { sendCommand } from '@/lib/api'
-import { useState, useCallback } from 'react'
+import { sendCommand, sendAICommand } from '@/lib/api'
+import { useClapDetection, type ClapPhase } from '@/lib/useClapDetection'
+import { useState, useCallback, useRef, useEffect } from 'react'
 
 /* ── RSSI bars ────────────────────────────────────────────────── */
 function RSSIBars({ rssi }: { rssi: number | null }) {
@@ -157,6 +158,41 @@ function LightOrb({ power, online, pending }: { power: boolean; online: boolean;
   )
 }
 
+/* ── Spinner component ────────────────────────────────── */
+function Spinner({ size = 16, color = 'currentColor' }: { size?: number; color?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      className="animate-spin"
+      style={{ animationDuration: '0.8s' }}
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke={color}
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeDasharray="40 70"
+        opacity="0.25"
+      />
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke={color}
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeDasharray="20 90"
+        strokeDashoffset="8"
+      />
+    </svg>
+  )
+}
+
 /* ── Toggle button ─────────────────────────────────────────────── */
 function ToggleButton({
   power,
@@ -211,11 +247,7 @@ function ToggleButton({
             exit={{ opacity: 0 }}
             className="flex items-center gap-2"
           >
-            <motion.span
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-              className="inline-block h-3.5 w-3.5 rounded-full border-2 border-current border-r-transparent"
-            />
+            <Spinner size={14} color={power && online ? '#000' : 'var(--color-fg)'} />
             Applying…
           </motion.span>
         ) : (
@@ -244,11 +276,447 @@ function useRelativeTime(ts: number | null): string {
   return `${Math.floor(diff / 3_600_000)}h ago`
 }
 
+/* ── Audio level bars (reusable) ─── */
+function AudioBars({ level, barCount = 7, active = false, color = 'var(--color-amber)' }: { level: number; barCount?: number; active?: boolean; color?: string }) {
+  const heights = Array.from({ length: barCount }, (_, i) => {
+    // Center bars taller, edge bars shorter
+    const center = barCount / 2
+    const dist = Math.abs(i - center) / center
+    const baseHeight = 1 - dist * 0.6
+    // Add some controlled randomness based on level
+    const randomness = Math.sin((i + 1) * 1.7 + Date.now() * 0.003) * 0.3 + 0.7
+    return baseHeight * randomness
+  })
+
+  return (
+    <div className="flex items-center gap-[2px]" style={{ height: 16 }}>
+      {heights.map((h, i) => (
+        <motion.div
+          key={i}
+          className="w-[3px] rounded-full"
+          animate={{
+            height: active ? Math.max(3, h * level * 14) : 3,
+            backgroundColor: active ? color : 'rgba(255,255,255,0.15)',
+          }}
+          transition={{ duration: 0.08, ease: 'easeOut' }}
+          style={{ minHeight: 3 }}
+        />
+      ))}
+    </div>
+  )
+}
+
+/* ── Clap toggle with audio visualization ─── */
+function ClapToggle({
+  clapEnabled,
+  clapPhase,
+  listening,
+  volume,
+  onToggle,
+}: {
+  clapEnabled: boolean
+  clapPhase: ClapPhase
+  listening: boolean
+  volume: number
+  onToggle: () => void
+}) {
+  // Visual flash effect when clap is confirmed
+  const [flashAlpha, setFlashAlpha] = useState(0)
+  useEffect(() => {
+    if (clapPhase === 'confirmed') {
+      setFlashAlpha(1)
+      setTimeout(() => setFlashAlpha(0), 600)
+    } else if (clapPhase === 'first_hit') {
+      setFlashAlpha(0.5)
+    }
+  }, [clapPhase])
+
+  return (
+    <div className="relative">
+      {/* Confirmation flash overlay */}
+      <AnimatePresence>
+        {flashAlpha > 0 && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: flashAlpha * 0.15, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.1 }}
+            transition={{ duration: 0.3 }}
+            className="absolute inset-0 rounded-xl pointer-events-none"
+            style={{ background: 'var(--color-amber)' }}
+          />
+        )}
+      </AnimatePresence>
+
+      <motion.button
+        onClick={onToggle}
+        whileTap={{ scale: 0.95 }}
+        className="flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium transition-all"
+        style={{
+          background: clapEnabled
+            ? 'rgba(245,185,66,0.12)'
+            : 'rgba(255,255,255,0.04)',
+          border: `1px solid ${clapEnabled ? 'rgba(245,185,66,0.35)' : 'rgba(255,255,255,0.08)'}`,
+          color: clapEnabled ? 'var(--color-amber)' : 'var(--color-fg-subtle)',
+          boxShadow: clapEnabled ? '0 0 20px rgba(245,185,66,0.08)' : 'none',
+        }}
+      >
+        {/* Hand icon */}
+        <motion.span
+          className="text-lg"
+          animate={{
+            scale: clapPhase === 'confirmed' ? [1, 1.4, 1] : clapPhase === 'first_hit' ? [1, 1.15, 1] : 1,
+            rotate: clapPhase === 'confirmed' ? [0, -8, 8, 0] : 0,
+          }}
+          transition={{ duration: clapPhase === 'confirmed' ? 0.4 : 0.2 }}
+        >
+          {clapEnabled ? '👏' : '🤚'}
+        </motion.span>
+
+        {/* Label */}
+        <AnimatePresence mode="wait">
+          <motion.span
+            key={clapPhase === 'confirmed' ? 'clap!' : clapPhase === 'first_hit' ? '1st...' : clapEnabled ? 'on' : 'off'}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+          >
+            {clapPhase === 'confirmed'
+              ? '¡Palmada!'
+              : clapPhase === 'first_hit'
+                ? '1ra palmada...'
+                : clapEnabled
+                  ? listening ? '' : 'Palmadas ON'
+                  : 'Palmadas'}
+          </motion.span>
+        </AnimatePresence>
+
+        {/* Audio level bars (only visible when enabled) */}
+        {clapEnabled && (
+          <AudioBars
+            level={volume}
+            barCount={5}
+            active={listening}
+            color={clapPhase === 'confirmed' ? 'var(--color-success)' : 'var(--color-amber)'}
+          />
+        )}
+      </motion.button>
+    </div>
+  )
+}
+
+/* ── AI Command Input with voice ────────────────────────────── */
+function AIVoicePanel({ deviceId }: { deviceId: string }) {
+  const [text, setText] = useState('')
+  const [listening, setListening] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [micLevel, setMicLevel] = useState(0)
+  const recognitionRef = useRef<any>(null)
+  const micAnalyserRef = useRef<{ analyser: AnalyserNode; ctx: AudioContext; stream: MediaStream } | null>(null)
+
+  const handleAIText = useCallback(async () => {
+    if (!text.trim()) return
+    setLoading(true)
+    setAiError(null)
+    try {
+      await sendAICommand(deviceId, text.trim())
+      setText('')
+    } catch (err: any) {
+      setAiError(err.message || 'AI command failed')
+    } finally {
+      setLoading(false)
+    }
+  }, [text, deviceId])
+
+  const stopMicMonitoring = useCallback(() => {
+    if (micAnalyserRef.current) {
+      micAnalyserRef.current.stream.getTracks().forEach((t) => t.stop())
+      micAnalyserRef.current.ctx.close()
+      micAnalyserRef.current = null
+    }
+    setMicLevel(0)
+  }, [])
+
+  const startMicMonitoring = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      })
+      const ctx = new AudioContext()
+      const source = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 256
+      analyser.smoothingTimeConstant = 0.5
+      source.connect(analyser)
+      micAnalyserRef.current = { analyser, ctx, stream }
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount)
+      const update = () => {
+        if (!micAnalyserRef.current) return
+        micAnalyserRef.current.analyser.getByteFrequencyData(dataArray)
+        let sum = 0
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i]
+        const avg = sum / dataArray.length / 255
+        setMicLevel(avg)
+        requestAnimationFrame(update)
+      }
+      requestAnimationFrame(update)
+    } catch {
+      // Silently fail — mic monitoring is optional
+    }
+  }, [])
+
+  const handleVoice = useCallback(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      setAiError('Speech recognition not supported in this browser')
+      return
+    }
+
+    if (listening) {
+      recognitionRef.current?.stop()
+      setListening(false)
+      stopMicMonitoring()
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'es-ES'
+    recognition.interimResults = true
+    recognition.continuous = false
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript
+      if (event.results[0].isFinal) {
+        setText(transcript)
+        setListening(false)
+        stopMicMonitoring()
+        // Auto-send after voice transcription completes
+        if (transcript.trim()) {
+          setLoading(true)
+          setAiError(null)
+          sendAICommand(deviceId, transcript.trim())
+            .then(() => setText(''))
+            .catch((err: any) => setAiError(err.message || 'AI command failed'))
+            .finally(() => setLoading(false))
+        }
+      } else {
+        // Show interim results
+        setText(transcript)
+      }
+    }
+
+    recognition.onerror = () => {
+      setListening(false)
+      stopMicMonitoring()
+      setAiError('Voice recognition error')
+    }
+
+    recognition.onend = () => {
+      setListening(false)
+      stopMicMonitoring()
+    }
+
+    recognitionRef.current = recognition
+    recognition.start()
+    setListening(true)
+    setAiError(null)
+    startMicMonitoring()
+  }, [listening, startMicMonitoring, stopMicMonitoring])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopMicMonitoring()
+    }
+  }, [stopMicMonitoring])
+
+  return (
+    <div className="flex flex-col gap-2.5 w-full">
+      <div className="flex items-center gap-2">
+        {/* Text input */}
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => { setText(e.target.value); setAiError(null) }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) handleAIText() }}
+            placeholder='Escribí "enciende", "parpadea", "apaga"...'
+            disabled={loading}
+            className="w-full rounded-xl border border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.04)] px-4 py-2.5 pr-10 text-sm outline-none transition-all focus:border-[var(--color-amber)] focus:bg-[rgba(255,255,255,0.06)] focus:shadow-[0_0_0_3px_var(--color-amber-glow)] disabled:opacity-50"
+            style={{ color: 'var(--color-fg)' }}
+          />
+          {/* Clear button */}
+          <AnimatePresence>
+            {text && !loading && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.7 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.7 }}
+                onClick={() => { setText(''); setAiError(null) }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs opacity-40 hover:opacity-70 transition-opacity"
+                style={{ color: 'var(--color-fg)' }}
+              >
+                ✕
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* AI Submit button */}
+        <motion.button
+          onClick={handleAIText}
+          disabled={loading || !text.trim()}
+          whileTap={{ scale: 0.92 }}
+          whileHover={{ scale: loading ? 1 : 1.02 }}
+          className="relative flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          style={{
+            background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
+            color: '#fff',
+          }}
+        >
+          <AnimatePresence mode="wait">
+            {loading ? (
+              <motion.span
+                key="ai-loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex items-center gap-1.5"
+              >
+                <Spinner size={12} color="#fff" />
+                Pensando
+              </motion.span>
+            ) : (
+              <motion.span
+                key="ai-send"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                Enviar
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.button>
+
+        {/* Mic button */}
+        <motion.button
+          onClick={handleVoice}
+          whileTap={{ scale: 0.9 }}
+          className="relative flex items-center justify-center rounded-xl px-3 py-2.5 transition-all"
+          style={{
+            background: listening
+              ? 'rgba(239,68,68,0.15)'
+              : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${listening ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.08)'}`,
+            boxShadow: listening ? '0 0 16px rgba(239,68,68,0.12)' : 'none',
+          }}
+          title={listening ? 'Dejar de escuchar' : 'Usar micrófono'}
+        >
+          {/* Pulsing ring when listening */}
+          {listening && (
+            <motion.div
+              className="absolute inset-0 rounded-xl"
+              animate={{ opacity: [0.4, 0, 0.4], scale: [1, 1.15, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+              style={{ border: '2px solid rgba(239,68,68,0.3)' }}
+            />
+          )}
+          <AnimatePresence mode="wait">
+            {listening ? (
+              <motion.div
+                key="mic-active"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="flex items-center gap-1.5"
+              >
+                {/* Mic waveform bars */}
+                <AudioBars
+                  level={micLevel}
+                  barCount={4}
+                  active={true}
+                  color="rgba(239,68,68,0.9)"
+                />
+              </motion.div>
+            ) : (
+              <motion.span
+                key="mic-idle"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-lg"
+              >
+                🎤
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.button>
+      </div>
+
+      {/* Listening indicator */}
+      <AnimatePresence>
+        {listening && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="flex items-center gap-2 overflow-hidden"
+          >
+            <motion.div
+              className="h-2 w-2 rounded-full bg-red-500"
+              animate={{ opacity: [1, 0.3, 1] }}
+              transition={{ duration: 1.2, repeat: Infinity }}
+            />
+            <span className="text-xs" style={{ color: 'var(--color-fg-subtle)' }}>
+              Escuchando<VoiceDots />
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Error message */}
+      <AnimatePresence>
+        {aiError && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="rounded-lg px-3 py-2 text-xs"
+            style={{
+              background: 'rgba(255,69,58,0.08)',
+              border: '1px solid rgba(255,69,58,0.2)',
+              color: 'var(--color-danger)',
+            }}
+          >
+            {aiError}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+/** Animate dots "..." for "Escuchando..." */
+function VoiceDots() {
+  const [dots, setDots] = useState(1)
+  useEffect(() => {
+    const id = setInterval(() => setDots((d) => (d % 3) + 1), 400)
+    return () => clearInterval(id)
+  }, [])
+  return <>{'.'.repeat(dots)}</>
+}
+
 /* ── DeviceCard ─────────────────────────────────────────────────── */
 export default function DeviceCard({ deviceId }: { deviceId: string }) {
-  const { power, online, rssi, lastUpdate, pendingCommandId, setPending, setPower } = useDeviceStore()
+  const { power, online, rssi, lastUpdate, pendingCommandId, clapEnabled, setPending, setPower, setClapEnabled } = useDeviceStore()
   const [error, setError] = useState<string | null>(null)
   const lastSeen = useRelativeTime(lastUpdate)
+
+  // Clap detection hook
+  const { listening, clapPhase, volume } = useClapDetection(clapEnabled, deviceId, power)
 
   const handleToggle = useCallback(async () => {
     if (pendingCommandId) return
@@ -340,7 +808,7 @@ export default function DeviceCard({ deviceId }: { deviceId: string }) {
           <LightOrb power={power} online={online} pending={!!pendingCommandId} />
         </div>
 
-        {/* Toggle */}
+        {/* Controls */}
         <div className="flex flex-col items-center gap-4">
           <ToggleButton
             power={power}
@@ -348,6 +816,18 @@ export default function DeviceCard({ deviceId }: { deviceId: string }) {
             pending={!!pendingCommandId}
             onToggle={handleToggle}
           />
+
+          {/* Clap detection toggle */}
+          <ClapToggle
+            clapEnabled={clapEnabled}
+            clapPhase={clapPhase}
+            listening={listening}
+            volume={volume}
+            onToggle={() => setClapEnabled(!clapEnabled)}
+          />
+
+          {/* AI / Voice panel */}
+          <AIVoicePanel deviceId={deviceId} />
 
           {/* Last seen */}
           <AnimatePresence mode="wait">

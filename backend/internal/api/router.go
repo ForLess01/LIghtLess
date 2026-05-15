@@ -3,18 +3,20 @@ package api
 import (
 	"net/http"
 
+	"lightless/internal/ai"
 	"lightless/internal/auth"
 	"lightless/internal/mqtt"
 	"lightless/internal/store"
 	"lightless/internal/ws"
 )
 
-func NewRouter(db *store.Store, mqttClient *mqtt.Client, hub *ws.Hub, authSvc *auth.Service) http.Handler {
+func NewRouter(db *store.Store, mqttClient *mqtt.Client, hub *ws.Hub, authSvc *auth.Service, aiClient *ai.Client) http.Handler {
 	h := &Handlers{
 		db:         db,
 		mqttClient: mqttClient,
 		hub:        hub,
 		auth:       authSvc,
+		aiClient:   aiClient,
 	}
 
 	mux := http.NewServeMux()
@@ -23,6 +25,7 @@ func NewRouter(db *store.Store, mqttClient *mqtt.Client, hub *ws.Hub, authSvc *a
 	mux.HandleFunc("POST /api/auth/login", h.Login)
 
 	mux.Handle("POST /api/devices/{id}/command", h.authMiddleware(http.HandlerFunc(h.SendCommand)))
+	mux.Handle("POST /api/devices/{id}/ai-command", h.authMiddleware(http.HandlerFunc(h.AICommand)))
 	mux.Handle("GET /api/devices/{id}/events", h.authMiddleware(http.HandlerFunc(h.ListEvents)))
 
 	mux.HandleFunc("GET /ws", h.WebSocket)

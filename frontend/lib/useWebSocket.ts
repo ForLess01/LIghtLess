@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { wsURL } from './api'
+import { autoLogin } from './api'
 import { useDeviceStore } from './store'
 
 type WSEvent = {
@@ -18,9 +19,11 @@ export function useWebSocket() {
     let cancelled = false
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
-    function connect() {
+    async function connect() {
       if (cancelled) return
       setStatus('connecting')
+      // Ensure we have a token before connecting
+      try { await autoLogin() } catch { /* will retry on reconnect */ }
       const ws = new WebSocket(wsURL())
       wsRef.current = ws
 

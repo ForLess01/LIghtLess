@@ -1,0 +1,22 @@
+# fly.toml — LightLess Frontend
+# Deploy: cd frontend && fly deploy
+app = 'lightless-web'
+primary_region = 'gru'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[build.args]
+  # Override these when deploying: fly deploy --build-arg NEXT_PUBLIC_API_URL=https://lightless-api.fly.dev
+  NEXT_PUBLIC_API_URL = 'http://localhost:8080'
+  NEXT_PUBLIC_DEVICE_ID = 'foco-sala'
+
+[env]
+  PORT = '3000'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1

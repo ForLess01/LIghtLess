@@ -1,10 +1,8 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { fetchEvents } from '@/lib/api'
-import { getToken } from '@/lib/auth'
 import { useDeviceStore } from '@/lib/store'
 import { useWebSocket } from '@/lib/useWebSocket'
 import DeviceCard from '../_components/DeviceCard'
@@ -41,20 +39,14 @@ function ConnectionPill({ status }: { status: 'connecting' | 'open' | 'closed' }
 }
 
 export default function DashboardPage() {
-  const router = useRouter()
   const wsStatus = useWebSocket()
   const hydrateFromHistory = useDeviceStore((s) => s.hydrateFromHistory)
 
   useEffect(() => {
-    if (!getToken()) {
-      router.replace('/login')
-      return
-    }
-
     fetchEvents(DEVICE_ID, 30)
       .then(hydrateFromHistory)
-      .catch(() => router.replace('/login'))
-  }, [hydrateFromHistory, router])
+      .catch(() => {})
+  }, [hydrateFromHistory])
 
   return (
     <div className="min-h-full px-6 py-8 lg:px-10 lg:py-10 xl:px-16">

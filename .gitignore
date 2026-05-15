@@ -8,6 +8,7 @@ mosquitto/log/
 
 backend/tmp/
 backend/lightless
+backend/server
 backend/*.db
 backend/*.db-shm
 backend/*.db-wal

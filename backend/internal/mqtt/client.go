@@ -2,6 +2,7 @@ package mqtt
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -34,6 +35,11 @@ func New(brokerURL, username, password string, db *store.Store, hub *ws.Hub) (*C
 	opts.SetConnectRetryInterval(3 * time.Second)
 	opts.SetOrderMatters(false)
 	opts.SetCleanSession(true)
+
+	// TLS config for HiveMQ Cloud (accept any cert)
+	opts.SetTLSConfig(&tls.Config{
+		InsecureSkipVerify: true,
+	})
 
 	c := &Client{db: db, hub: hub}
 

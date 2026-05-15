@@ -16,6 +16,7 @@ type DeviceState = {
   rssi: number | null
   lastUpdate: number | null
   events: LiveEvent[]
+  clapEnabled: boolean
   setPower: (p: boolean) => void
   setPending: (id: string | null) => void
   setOnline: (online: boolean) => void
@@ -23,6 +24,7 @@ type DeviceState = {
   setLastUpdate: (t: number) => void
   pushEvent: (e: LiveEvent) => void
   hydrateFromHistory: (events: DeviceEvent[]) => void
+  setClapEnabled: (v: boolean) => void
   reset: () => void
 }
 
@@ -33,6 +35,7 @@ const initialState = {
   rssi: null,
   lastUpdate: null,
   events: [] as LiveEvent[],
+  clapEnabled: false,
 }
 
 export const useDeviceStore = create<DeviceState>((set) => ({
@@ -42,6 +45,7 @@ export const useDeviceStore = create<DeviceState>((set) => ({
   setOnline: (online) => set({ online }),
   setRSSI: (rssi) => set({ rssi }),
   setLastUpdate: (t) => set({ lastUpdate: t }),
+  setClapEnabled: (v) => set({ clapEnabled: v }),
   pushEvent: (e) =>
     set((s) => ({ events: [e, ...s.events].slice(0, 30) })),
   hydrateFromHistory: (events) => {

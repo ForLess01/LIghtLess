@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: lightless-backend
+    runtime: docker
+    repo: https://github.com/rendoaltar/LightLess
+    branch: main
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: MQTT_BROKER_URL
+        sync: false
+      - key: MQTT_USERNAME
+        sync: false
+      - key: MQTT_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        value: admin@lightless.local
+      - key: ADMIN_PASSWORD_HASH
+        sync: false
+      - key: DATABASE_PATH
+        value: /data/lightless.db
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: moonshot-v1-32k
+    disk:
+      name: lightless-data
+      mountPath: /data
+      sizeGB: 1

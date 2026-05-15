@@ -11,6 +11,7 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"lightless/internal/ai"
 	"lightless/internal/api"
 	"lightless/internal/auth"
 	"lightless/internal/config"
@@ -44,7 +45,16 @@ func main() {
 
 	authSvc := auth.NewService(cfg.JWTSecret, cfg.AdminEmail, cfg.AdminPasswordHash)
 
-	router := api.NewRouter(db, mqttClient, hub, authSvc)
+	// AI client (optional — only if API key is set)
+	var aiClient *ai.Client
+	if cfg.AIAPIKey != "" {
+		aiClient = ai.New(cfg.AIAPIKey, cfg.AIModel)
+		log.Println("AI commands enabled")
+	} else {
+		log.Println("AI commands disabled (no AI_API_KEY)")
+	}
+
+	router := api.NewRouter(db, mqttClient, hub, authSvc, aiClient)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

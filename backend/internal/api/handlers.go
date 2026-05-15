@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"lightless/internal/ai"
 	"lightless/internal/auth"
 	"lightless/internal/domain"
 	"lightless/internal/mqtt"
@@ -21,6 +22,7 @@ type Handlers struct {
 	mqttClient *mqtt.Client
 	hub        *ws.Hub
 	auth       *auth.Service
+	aiClient *ai.Client
 }
 
 type loginReq struct {
@@ -70,7 +72,7 @@ func (h *Handlers) SendCommand(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	if req.Action != "set_state" {
+	if req.Action != "set_state" && req.Action != "blink" {
 		writeError(w, http.StatusBadRequest, "unsupported action")
 		return
 	}
@@ -129,6 +131,107 @@ func (h *Handlers) WebSocket(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handlers) Healthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// ── AI Command ────────────────────────────────────────────────────
+
+type aiCommandReq struct {
+	Text string `json:"text"`
+}
+
+type aiCommandResp struct {
+	CommandID string          `json:"command_id"`
+	Action    string          `json:"action"`
+	Parsed    *ai.CommandAction `json:"parsed"`
+}
+
+func (h *Handlers) AICommand(w http.ResponseWriter, r *http.Request) {
+	deviceID := r.PathValue("id")
+	if deviceID == "" {
+		writeError(w, http.StatusBadRequest, "missing device id")
+		return
+	}
+
+	if h.aiClient == nil {
+		writeError(w, http.StatusServiceUnavailable, "ai api key not configured")
+		return
+	}
+
+	var req aiCommandReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Text == "" {
+		writeError(w, http.StatusBadRequest, "missing or invalid text")
+		return
+	}
+
+	// Try absolute time scheduling first (more reliable than AI for time math)
+	action, err := ai.ParseScheduleCommand(req.Text, time.Local)
+	if err != nil {
+		log.Printf("schedule parse error: %v", err)
+		writeError(w, http.StatusUnprocessableEntity, "could not schedule command: "+err.Error())
+		return
+	}
+	if action == nil {
+		// No absolute time detected — parse natural language via AI
+		action, err = h.aiClient.ParseCommand(req.Text)
+		if err != nil {
+			log.Printf("ai parse error: %v", err)
+			writeError(w, http.StatusUnprocessableEntity, "could not understand command")
+			return
+		}
+	} else {
+		log.Printf("schedule: detected absolute time for device %s", deviceID)
+	}
+
+	// Build and publish MQTT command
+	cmd := domain.Command{
+		ID:        uuid.NewString(),
+		Action:    action.Action,
+		Value:     action.Value,
+		Timestamp: time.Now().Unix(),
+	}
+
+	// For blink, encode count and interval
+	if action.Action == "blink" {
+		cmd.Value = map[string]any{
+			"count":    action.Count,
+			"interval": action.Interval,
+		}
+	}
+
+	// For pattern, encode steps
+	if action.Action == "pattern" {
+		steps := make([]map[string]any, len(action.Steps))
+		for i, s := range action.Steps {
+			steps[i] = map[string]any{
+				"s": s.State,
+				"d": s.Duration,
+			}
+		}
+		cmd.Value = map[string]any{
+			"steps": steps,
+		}
+	}
+
+	payload, _ := json.Marshal(cmd)
+	if _, err := h.db.InsertEvent(r.Context(), domain.Event{
+		CommandID: cmd.ID,
+		DeviceID:  deviceID,
+		EventType: "command_sent",
+		Payload:   string(payload),
+	}); err != nil {
+		log.Printf("insert event: %v", err)
+	}
+
+	if err := h.mqttClient.PublishCommand(deviceID, cmd); err != nil {
+		writeError(w, http.StatusBadGateway, "mqtt publish failed")
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, aiCommandResp{
+		CommandID: cmd.ID,
+		Action:    action.Action,
+		Parsed:    action,
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
