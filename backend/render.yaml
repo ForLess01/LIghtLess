@@ -4,6 +4,7 @@ services:
     runtime: docker
     rootDir: backend
     dockerfilePath: ./Dockerfile
+    plan: free
     envVars:
       - key: PORT
         value: 8080
@@ -20,12 +21,8 @@ services:
       - key: ADMIN_PASSWORD_HASH
         sync: false
       - key: DATABASE_PATH
-        value: /data/lightless.db
+        value: /tmp/lightless.db
       - key: AI_API_KEY
         sync: false
       - key: AI_MODEL
         value: moonshot-v1-32k
-    disk:
-      name: lightless-data
-      mountPath: /data
-      sizeGB: 1
