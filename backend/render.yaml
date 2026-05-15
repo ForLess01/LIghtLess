@@ -2,8 +2,6 @@ services:
   - type: web
     name: lightless-backend
     runtime: docker
-    repo: https://github.com/rendoaltar/LightLess
-    branch: main
     rootDir: backend
     dockerfilePath: ./Dockerfile
     envVars:
